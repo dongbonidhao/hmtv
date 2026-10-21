@@ -1,8 +1,8 @@
-// 迷你引擎配置（构建时生成，可读）
+// 迷你引擎配置（由 40 个自建源生成，仅收录实际存在实现的站点）
 module.exports = {
-  brand: "潇洒搭建维护",
-  port: 9988,
-  sites: [
+  "brand": "潇洒搭建维护",
+  "port": 5758,
+  "sites": [
     {
       "key": "nodejs_baseset",
       "name": "⚙配置·中枢",
@@ -372,7 +372,5 @@ module.exports = {
       "quickSearch": 1,
       "filterable": 1
     }
-  ],
+  ]
 };
-
-globalThis.__MINI_CONFIG__ = module.exports;
