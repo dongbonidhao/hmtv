@@ -1067,7 +1067,17 @@ async function start(config) {
   const wantPort = envPort || Number((config && config.port) || 0) || PORT || 9988;
   const host = process.env.HOST || '0.0.0.0';
 
+  let __reqN = 0;
   const handler = (req, res) => {
+    // 记录壳到底请求了什么（只记前 40 条，避免刷爆日志）
+    if (__reqN < 40) {
+      __reqN++;
+      try {
+        __bh('req' + __reqN, req.method + ' ' + String(req.url || '').slice(0, 90) +
+             ' | host=' + String(req.headers && req.headers.host || '') +
+             ' | ua=' + String(req.headers && req.headers['user-agent'] || '').slice(0, 18));
+      } catch (e) {}
+    }
     handle(req, res, false).catch((e) => {
       console.error('[mini] uncaught:', e && e.message);
       if (!res.writableEnded) jsonTo(res, 500, { error: String((e && e.message) || e) });
