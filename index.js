@@ -878,6 +878,7 @@ async function handleWebsite(req, res, pathname, url) {
 // ---------------------------------------------------------------- 启动
 
 let server = null;
+const extraServers = [];
 
 // 原版的写法：messageToDart 是引擎自己实现的，往壳子的本地端口发消息
 function httpPostJson(url, body) {
@@ -960,43 +961,57 @@ async function start(config) {
 
   // 先试壳子注入的 catServerFactory；它不听话就回退原生 http。
   // 关键：无论哪条路，start() 都不能悬挂，否则壳子会报「请求已过期」。
+  // 策略：两条腿走路。
+  //   1) 一定在 9988 起一个自己的服务（苹果端就是连 9988）
+  //   2) 如果壳子注入了 catServerFactory，它往往绑在别的端口（鸿蒙的 5758），
+  //      那个服务只接管、不 listen、不 close。
+  const extra = [];
   let used = '';
+
   if (typeof globalThis.catServerFactory === 'function') {
     try {
       const srv = globalThis.catServerFactory(handler, {});
       if (srv && typeof srv.listen === 'function') {
-        // 壳子通常已经（或马上）把服务绑在它自己的端口上（日志里的 5758）。
-        // 我们**不去 listen、更不 close**，只等它进入 listening 后直接接管。
-        const ok = await waitListening(srv, 6000);
+        const ok = await waitListening(srv, 3000);
         if (ok) {
-          server = srv;
-          used = 'catServerFactory(壳子端口)';
+          extra.push(srv);
+          extraServers.push(srv);
+          console.log('[mini] 接管壳子端口');
         } else {
-          console.error('[mini] 壳子的服务 6 秒内未监听，才回退原生 http（不会关它）');
+          console.error('[mini] 壳子的服务 3 秒内未监听（保留不动）');
         }
       }
     } catch (e) {
-      console.error('[mini] catServerFactory 异常，回退原生 http:', e && e.message);
+      console.error('[mini] catServerFactory 异常:', e && e.message);
     }
   }
 
-  if (!server) {
+  {
     const srv = http.createServer(handler);
     const ok = await listenQuiet(srv, port, 6000);
-    if (!ok) {
-      console.error('[mini] 无法监听端口 ' + port);
-      throw new Error('listen failed on port ' + port);
+    if (ok) {
+      server = srv;
+      used = 'http';
+    } else {
+      console.error('[mini] 也无法监听 ' + port);
+      if (!extra.length) throw new Error('listen failed on port ' + port);
     }
-    server = srv;
-    used = 'http';
   }
 
   let realPort = port;
   try {
-    const a = typeof server.address === 'function' ? server.address() : null;
+    const a = server && typeof server.address === 'function' ? server.address() : null;
     if (a && a.port) realPort = a.port;
   } catch (e) {
     /* 忽略 */
+  }
+  for (const ex of extra) {
+    try {
+      const a = typeof ex.address === 'function' ? ex.address() : null;
+      if (a && a.port) console.log('[mini] 同时服务壳子端口 ' + a.port);
+    } catch (e) {
+      /* 忽略 */
+    }
   }
   console.log('[mini] listening via ' + used + ' on port ' + realPort);
   toast('[mini] 已监听 ' + used + ':' + realPort);
@@ -1095,6 +1110,14 @@ function listenQuiet(srv, port, timeoutMs) {
 }
 
 async function stop() {
+  for (const ex of extraServers) {
+    try {
+      await new Promise((r) => ex.close(r));
+    } catch (e) {
+      /* 忽略 */
+    }
+  }
+  extraServers.length = 0;
   if (!server) return;
   try {
     await new Promise((r) => server.close(r));
