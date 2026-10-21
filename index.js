@@ -965,17 +965,14 @@ async function start(config) {
     try {
       const srv = globalThis.catServerFactory(handler, {});
       if (srv && typeof srv.listen === 'function') {
-        const ok = await listenQuiet(srv, port, 4000);
+        // 壳子通常已经（或马上）把服务绑在它自己的端口上（日志里的 5758）。
+        // 我们**不去 listen、更不 close**，只等它进入 listening 后直接接管。
+        const ok = await waitListening(srv, 6000);
         if (ok) {
           server = srv;
-          used = 'catServerFactory';
+          used = 'catServerFactory(壳子端口)';
         } else {
-          console.error('[mini] catServerFactory 4 秒内没有 listening，回退原生 http');
-          try {
-            if (typeof srv.close === 'function') srv.close();
-          } catch (e) {
-            /* 忽略 */
-          }
+          console.error('[mini] 壳子的服务 6 秒内未监听，才回退原生 http（不会关它）');
         }
       }
     } catch (e) {
@@ -994,7 +991,15 @@ async function start(config) {
     used = 'http';
   }
 
-  console.log('[mini] listening via ' + used);
+  let realPort = port;
+  try {
+    const a = typeof server.address === 'function' ? server.address() : null;
+    if (a && a.port) realPort = a.port;
+  } catch (e) {
+    /* 忽略 */
+  }
+  console.log('[mini] listening via ' + used + ' on port ' + realPort);
+  toast('[mini] 已监听 ' + used + ':' + realPort);
   toast('[mini] 已监听 ' + used + ':' + port);
 
   // 壳子可能解析这几行来判断启动成功，格式跟底包保持一致
@@ -1012,14 +1017,45 @@ async function start(config) {
       if (v4 && !n.internal && addrs.indexOf(n.address) < 0) addrs.push(n.address);
     }
   }
-  for (const ip of addrs) console.log('Server listening at http://' + ip + ':' + port);
-  console.log('Server listening on http://127.0.0.1:' + port);
+  for (const ip of addrs) console.log('Server listening at http://' + ip + ':' + realPort);
+  console.log('Server listening on http://127.0.0.1:' + realPort);
   return server;
+}
+
+// 只等服务自己进入 listening（壳子负责 bind），超时返回 false
+function waitListening(srv, timeoutMs) {
+  return new Promise((resolve) => {
+    if (srv.listening === true) return resolve(true);
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      clearInterval(tick);
+      clearTimeout(timer);
+      try {
+        srv.removeListener('listening', onOk);
+      } catch (e) {
+        /* 忽略 */
+      }
+      resolve(ok);
+    };
+    const onOk = () => finish(true);
+    const tick = setInterval(() => {
+      if (srv.listening === true) finish(true);
+    }, 100);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    try {
+      srv.once('listening', onOk);
+    } catch (e) {
+      /* 忽略 */
+    }
+  });
 }
 
 // 监听并等 listening；超时就返回 false（不抛），避免 start() 悬挂
 function listenQuiet(srv, port, timeoutMs) {
   return new Promise((resolve) => {
+    if (srv.listening === true) return resolve(true);
     let done = false;
     const finish = (ok) => {
       if (done) return;
@@ -1035,7 +1071,7 @@ function listenQuiet(srv, port, timeoutMs) {
     };
     const onOk = () => finish(true);
     const onErr = (e) => {
-      if (e && e.code === 'EADDRINUSE') {
+      if (e && (e.code === 'ERR_SERVER_ALREADY_LISTEN' || e.code === 'EADDRINUSE')) {
         console.error('[mini] 端口 ' + port + ' 被占用');
         finish(true); // 已经有人在监听，当作成功，壳子照样能连
         return;
