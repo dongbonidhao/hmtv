@@ -1113,7 +1113,7 @@ async function start(config) {
   __bh('listen-ok', 'port=' + realPort + ' want=' + wantPort + ' envPort=' + envPort + ' factory=' + (typeof globalThis.catServerFactory));
 
   // 兜底：壳子可能按固定端口探测（老引擎 9988，新框架 9977），多绑几个没坏处
-  for (const p of [9977, 9988]) {
+  for (const p of [5758, 5759, 5760, 5761, 5762, 9977, 9988]) {
     if (p === realPort || listeningPorts.indexOf(p) >= 0) continue;
     try {
       const extraSrv = http.createServer(handler);
