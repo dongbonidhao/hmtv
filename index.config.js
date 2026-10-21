@@ -14,7 +14,7 @@ module.exports = {
     },
     {
       "key": "nodejs_kan360",
-      "name": "360极速",
+      "name": "360影视",
       "type": 3,
       "api": "/spider/kan360/3",
       "searchable": 1,
@@ -67,6 +67,15 @@ module.exports = {
       "filterable": 0
     },
     {
+      "key": "nodejs_dongman_bashi",
+      "name": "动漫巴士",
+      "type": 3,
+      "api": "/spider/dongman_bashi/3",
+      "searchable": 1,
+      "quickSearch": 0,
+      "filterable": 0
+    },
+    {
       "key": "nodejs_gulu_4k",
       "name": "咕噜4K",
       "type": 3,
@@ -103,6 +112,15 @@ module.exports = {
       "filterable": 1
     },
     {
+      "key": "nodejs_dshixiong_tv",
+      "name": "大师兄影视",
+      "type": 3,
+      "api": "/spider/dshixiong_tv/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
+    },
+    {
       "key": "nodejs_tiantian_4k",
       "name": "天天4K",
       "type": 3,
@@ -110,6 +128,24 @@ module.exports = {
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
+    },
+    {
+      "key": "nodejs_shanyoumuxi4k",
+      "name": "山有木兮4K",
+      "type": 3,
+      "api": "/spider/shanyoumuxi4k/3",
+      "searchable": 1,
+      "quickSearch": 0,
+      "filterable": 1
+    },
+    {
+      "key": "nodejs_shanzha4k",
+      "name": "山楂4K",
+      "type": 3,
+      "api": "/spider/shanzha4k/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
     },
     {
       "key": "nodejs_yingju4k",
@@ -122,12 +158,21 @@ module.exports = {
     },
     {
       "key": "nodejs_yueting",
-      "name": "悦听吧",
+      "name": "悦听",
       "type": 3,
       "api": "/spider/yueting/3",
       "searchable": 1,
-      "quickSearch": 1,
+      "quickSearch": 0,
       "filterable": 0
+    },
+    {
+      "key": "nodejs_wencaiyingshi",
+      "name": "文才影视",
+      "type": 3,
+      "api": "/spider/wencaiyingshi/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
     },
     {
       "key": "nodejs_xin6v",
@@ -247,6 +292,15 @@ module.exports = {
       "filterable": 0
     },
     {
+      "key": "nodejs_guazi",
+      "name": "瓜子影视",
+      "type": 3,
+      "api": "/spider/guazi/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
+    },
+    {
       "key": "nodejs_kanju_ai",
       "name": "看剧AI",
       "type": 3,
@@ -325,7 +379,7 @@ module.exports = {
       "api": "/spider/tencent_video/3",
       "searchable": 1,
       "quickSearch": 0,
-      "filterable": 1
+      "filterable": 0
     },
     {
       "key": "nodejs_zhenpin_video",
@@ -334,7 +388,7 @@ module.exports = {
       "api": "/spider/zhenpin_video/3",
       "searchable": 1,
       "quickSearch": 0,
-      "filterable": 1
+      "filterable": 0
     },
     {
       "key": "nodejs_chabeihu",
@@ -346,13 +400,13 @@ module.exports = {
       "filterable": 0
     },
     {
-      "key": "nodejs_jianpian_you",
-      "name": "荐片优",
+      "key": "nodejs_jianpian",
+      "name": "荐片",
       "type": 3,
-      "api": "/spider/jianpian_you/3",
+      "api": "/spider/jianpian/3",
       "searchable": 1,
       "quickSearch": 0,
-      "filterable": 1
+      "filterable": 0
     },
     {
       "key": "nodejs_hudie_yingyuan",
