@@ -1066,11 +1066,61 @@ async function start(config) {
     }
   }
 
+  // 自检：真的连一下自己。壳子给的工厂有时返回"看似在监听、实际不工作"的对象，
+  // 这种情况必须用原生 http 重新绑同一个端口，否则壳子永远 probe 不到。
+  let alive = await probeSelf(realPort);
+  if (!alive && typeof globalThis.catServerFactory === 'function') {
+    console.error('[mini] 工厂服务探活失败，改用原生 http 重绑 ' + realPort);
+    try {
+      const owned = http.createServer(handler);
+      const r2 = await listenOnce(owned, realPort, host);
+      if (r2 === 'ok' || r2 === 'inuse') {
+        server = owned;
+        alive = await probeSelf(realPort);
+      }
+    } catch (e) {
+      console.error('[mini] 重绑失败:', e && e.message);
+    }
+  }
+  console.log('[mini] 自检 ' + (alive ? '通过' : '未通过') + ' @' + realPort);
+  toast('[mini] 自检' + (alive ? '通过' : '失败') + ' @' + realPort);
+
   console.log('CatVodSpiderios listening on http://127.0.0.1:' + realPort);
   console.log('Server listening at http://127.0.0.1:' + realPort);
   console.log('Server listening on http://127.0.0.1:' + realPort);
   toast('[mini] 已监听 ' + realPort);
   return server;
+}
+
+// 自己连一下 /config，确认端口上真的是我们的服务
+function probeSelf(port) {
+  return new Promise((resolve) => {
+    let done = false;
+    const fin = (v) => {
+      if (!done) { done = true; resolve(v); }
+    };
+    const timer = setTimeout(() => fin(false), 2500);
+    try {
+      const req = http.get({ host: '127.0.0.1', port: port, path: '/config', timeout: 2000 }, (res) => {
+        const cs = [];
+        res.on('data', (c) => cs.push(c));
+        res.on('end', () => {
+          clearTimeout(timer);
+          try {
+            const j = JSON.parse(Buffer.concat(cs).toString('utf8'));
+            fin(!!(j && j.video && Array.isArray(j.video.sites)));
+          } catch (e) {
+            fin(false);
+          }
+        });
+      });
+      req.on('timeout', () => { req.destroy(); clearTimeout(timer); fin(false); });
+      req.on('error', () => { clearTimeout(timer); fin(false); });
+    } catch (e) {
+      clearTimeout(timer);
+      fin(false);
+    }
+  });
 }
 
 // 调一次 listen({port, host})，返回 'ok' | 'inuse' | 'fail'
