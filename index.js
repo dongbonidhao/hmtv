@@ -342,14 +342,25 @@ function makeFastify(captured, prefix, rootInject) {
 // 内置站点：配置中心入口（没有它手机上就打不开配置中心）
 function loadBuiltinSpiders() {
   const captured = new Map();
-  const url = () => 'http://127.0.0.1:' + primaryPort() + '/website';
+  const base = () => 'http://127.0.0.1:' + primaryPort();
+  const siteUrl = () => base() + '/website';
+  const qrUrl = () => base() + '/website/api/config/qr?url=' + encodeURIComponent(siteUrl());
 
-  // 跟原版 baseset 完全一致的三段式：
-  //   /home     → 一个分类「通用配置」
-  //   /category → 一条 openInternalWebsite
-  //   /detail   → 通过 messageToDart 让壳子打开内嵌网页
+  // 完全照抄可用的参考源（baseset）：
+  //   home     → 分类 + filters + 一条「扫码配置」条目
+  //   category → 同样那一条
+  //   detail   → 发 openInternalWebview 让壳子开内嵌页
+  const item = () => ({
+    vod_id: 'config-center',
+    vod_name: '扫码配置',
+    vod_pic: qrUrl(),
+    vod_remarks: '点击打开云盘中枢',
+  });
+
   captured.set('POST /home', async () => ({
-    class: [{ type_id: 'setting', type_name: '通用配置' }],
+    class: [{ type_id: 'setting', type_name: siteUrl() }],
+    filters: {},
+    list: [item()],
   }));
 
   captured.set('POST /category', async () => ({
@@ -357,30 +368,30 @@ function loadBuiltinSpiders() {
     pagecount: 1,
     limit: 1,
     total: 1,
-    list: [
-      {
-        vod_id: 'openInternalWebsite',
-        vod_name: '通用配置',
-        vod_pic: '',
-        vod_remarks: '打开配置中心',
-      },
-    ],
+    list: [item()],
   }));
 
   captured.set('POST /detail', async (request) => {
     const id = String(request.body?.id || '');
-    if (id === 'openInternalWebsite') {
-      await messageToDart({ action: 'openInternalWebview', opt: { url: url() } });
-      return { list: [{ vod_name: '', vod_content: '' }] };
+    if (id === 'config-center' || id === 'openInternalWebsite') {
+      await messageToDart({ action: 'openInternalWebview', opt: { url: siteUrl() } });
     }
-    return { list: [{ vod_name: '', vod_content: '' }] };
+    return {
+      list: [
+        {
+          vod_id: 'config-center',
+          vod_name: '扫码打开云盘中枢',
+          vod_pic: qrUrl(),
+          vod_content: '手机扫码打开：' + siteUrl(),
+        },
+      ],
+    };
   });
 
   captured.set('POST /search', async () => ({ page: 1, pagecount: 1, list: [] }));
   captured.set('POST /play', async () => ({ parse: 0, url: '' }));
-  captured.set('GET /proxy/:img', async (request, reply) => reply.send(''));
 
-  const meta = { key: 'baseset', name: '配置', type: 3 };
+  const meta = { key: 'baseset', name: '⚙配置·中枢', type: 3 };
   spiders.set('baseset', { meta, routes: captured, prefix: '/spider/baseset/3' });
 }
 
@@ -852,6 +863,17 @@ async function handleWebsite(req, res, pathname, url) {
     const body = await readBody(req);
     await store.push('/danmu/autoPush', body.autoPush !== false);
     return jsonTo(res, 200, { code: 0 });
+  }
+
+  // /website/api/config/qr?url=...  生成二维码图片（配置中心入口用）
+  if (parts[1] === 'api' && parts[2] === 'config' && parts[3] === 'qr') {
+    const target = url.searchParams.get('url') || '';
+    try {
+      const buf = await qrPng(target || 'http://127.0.0.1:' + primaryPort() + '/website');
+      return textTo(res, 200, buf, 'image/png');
+    } catch (e) {
+      return textTo(res, 500, 'qr failed', 'text/plain');
+    }
   }
 
   // /website/:pan/cookie（阿里是 /ali/token）
