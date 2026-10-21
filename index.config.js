@@ -157,15 +157,6 @@ module.exports = {
       "filterable": 0
     },
     {
-      "key": "nodejs_muou2",
-      "name": "木偶站",
-      "type": 3,
-      "api": "/spider/muou2/3",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 0
-    },
-    {
       "key": "nodejs_muou_pan",
       "name": "木偶网盘",
       "type": 3,
