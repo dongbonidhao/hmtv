@@ -67,15 +67,6 @@ module.exports = {
       "filterable": 0
     },
     {
-      "key": "nodejs_dongman_bashi",
-      "name": "动漫巴士",
-      "type": 3,
-      "api": "/spider/dongman_bashi/3",
-      "searchable": 1,
-      "quickSearch": 0,
-      "filterable": 0
-    },
-    {
       "key": "nodejs_gulu_4k",
       "name": "咕噜4K",
       "type": 3,
@@ -317,6 +308,15 @@ module.exports = {
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
+    },
+    {
+      "key": "nodejs_pan_search",
+      "name": "网盘搜索",
+      "type": 3,
+      "api": "/spider/pan_search/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
     },
     {
       "key": "nodejs_netflix_cat",
