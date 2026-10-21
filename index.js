@@ -342,13 +342,44 @@ function makeFastify(captured, prefix, rootInject) {
 // 内置站点：配置中心入口（没有它手机上就打不开配置中心）
 function loadBuiltinSpiders() {
   const captured = new Map();
+  const url = () => 'http://127.0.0.1:' + primaryPort() + '/website';
+
+  // 跟原版 baseset 完全一致的三段式：
+  //   /home     → 一个分类「通用配置」
+  //   /category → 一条 openInternalWebsite
+  //   /detail   → 通过 messageToDart 让壳子打开内嵌网页
   captured.set('POST /home', async () => ({
-    class: [{ type_id: 'setting', type_name: 'http://127.0.0.1:' + primaryPort() + '/website' }],
+    class: [{ type_id: 'setting', type_name: '通用配置' }],
   }));
-  captured.set('POST /category', async () => ({ page: 1, pagecount: 1, list: [] }));
-  captured.set('POST /detail', async () => ({ list: [] }));
+
+  captured.set('POST /category', async () => ({
+    page: 1,
+    pagecount: 1,
+    limit: 1,
+    total: 1,
+    list: [
+      {
+        vod_id: 'openInternalWebsite',
+        vod_name: '通用配置',
+        vod_pic: '',
+        vod_remarks: '打开配置中心',
+      },
+    ],
+  }));
+
+  captured.set('POST /detail', async (request) => {
+    const id = String(request.body?.id || '');
+    if (id === 'openInternalWebsite') {
+      await messageToDart({ action: 'openInternalWebview', opt: { url: url() } });
+      return { list: [{ vod_name: '', vod_content: '' }] };
+    }
+    return { list: [{ vod_name: '', vod_content: '' }] };
+  });
+
   captured.set('POST /search', async () => ({ page: 1, pagecount: 1, list: [] }));
   captured.set('POST /play', async () => ({ parse: 0, url: '' }));
+  captured.set('GET /proxy/:img', async (request, reply) => reply.send(''));
+
   const meta = { key: 'baseset', name: '配置', type: 3 };
   spiders.set('baseset', { meta, routes: captured, prefix: '/spider/baseset/3' });
 }
