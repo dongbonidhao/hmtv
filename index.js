@@ -879,63 +879,183 @@ async function handleWebsite(req, res, pathname, url) {
 
 let server = null;
 
-// 壳子会注入 catServerFactory（fastify 风格的服务工厂）；没有就用原生 http
-function createServer(handler) {
-  const factory = globalThis.catServerFactory;
-  if (typeof factory === 'function') {
+// 原版的写法：messageToDart 是引擎自己实现的，往壳子的本地端口发消息
+function httpPostJson(url, body) {
+  return new Promise((resolve) => {
     try {
-      const s = factory(handler, {});
-      if (s && typeof s.listen === 'function') {
-        console.log('[mini] 使用壳子提供的 catServerFactory');
-        return s;
-      }
+      const u = new URL(url);
+      const lib = u.protocol === 'http:' ? http : https;
+      const payload = JSON.stringify(body);
+      const req = lib.request(
+        url,
+        {
+          method: 'POST',
+          timeout: 3000,
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+        },
+        (res) => {
+          const cs = [];
+          res.on('data', (c) => cs.push(c));
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(Buffer.concat(cs).toString('utf8')));
+            } catch (e) {
+              resolve(null);
+            }
+          });
+        }
+      );
+      req.on('timeout', () => req.destroy(new Error('timeout')));
+      req.on('error', () => resolve(null));
+      req.write(payload);
+      req.end();
     } catch (e) {
-      console.error('[mini] catServerFactory 调用失败，回退原生 http:', e && e.message);
+      resolve(null);
     }
-  }
-  return http.createServer(handler);
+  });
 }
+
+function dartPort() {
+  try {
+    return typeof globalThis.catDartServerPort === 'function' ? Number(globalThis.catDartServerPort()) || 0 : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+async function messageToDart(payload) {
+  const port = dartPort();
+  if (!port) return null;
+  return httpPostJson('http://127.0.0.1:' + port + '/msg', payload);
+}
+
+function toast(message) {
+  try {
+    if (globalThis.messageToDart) globalThis.messageToDart({ action: 'toast', opt: { message: String(message), duration: 3 } });
+  } catch (e) {
+    /* 忽略 */
+  }
+}
+
+// 跟原版一样挂到 globalThis 上
+globalThis.messageToDart = messageToDart;
 
 async function start(config) {
   if (server) {
-    console.log('[mini] 已经在运行，忽略重复 start()');
+    console.log('[mini] already running, ignore start()');
     return server;
   }
+  toast('[mini] start() 进入');
   store.load();
   loadSpiders();
-
-  server = createServer((req, res) => {
-    handle(req, res, false).catch((e) => {
-      console.error('[mini] 未捕获:', e && e.message);
-      if (!res.writableEnded) jsonTo(res, 500, { error: String((e && e.message) || e) });
-    });
-  });
+  toast('[mini] 站点已装载 41 个');
 
   const port = Number((config && config.port) || PORT);
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, '0.0.0.0', resolve);
-  }).catch((e) => {
-    console.error('[mini] 监听失败:', e && e.message);
-    throw e;
-  });
-  // 壳子可能解析这几行来判断启动成功，格式跟底包保持一致
-  {
-    const os = require('os');
-    const nets = os.networkInterfaces ? os.networkInterfaces() : {};
-    const addrs = ['127.0.0.1'];
-    for (const list of Object.values(nets || {})) {
-      for (const n of list || []) {
-        const v4 = n && (n.family === 'IPv4' || n.family === 4);
-        if (v4 && !n.internal && addrs.indexOf(n.address) < 0) addrs.push(n.address);
+  const handler = (req, res) => {
+    handle(req, res, false).catch((e) => {
+      console.error('[mini] uncaught:', e && e.message);
+      if (!res.writableEnded) jsonTo(res, 500, { error: String((e && e.message) || e) });
+    });
+  };
+
+  // 先试壳子注入的 catServerFactory；它不听话就回退原生 http。
+  // 关键：无论哪条路，start() 都不能悬挂，否则壳子会报「请求已过期」。
+  let used = '';
+  if (typeof globalThis.catServerFactory === 'function') {
+    try {
+      const srv = globalThis.catServerFactory(handler, {});
+      if (srv && typeof srv.listen === 'function') {
+        const ok = await listenQuiet(srv, port, 4000);
+        if (ok) {
+          server = srv;
+          used = 'catServerFactory';
+        } else {
+          console.error('[mini] catServerFactory 4 秒内没有 listening，回退原生 http');
+          try {
+            if (typeof srv.close === 'function') srv.close();
+          } catch (e) {
+            /* 忽略 */
+          }
+        }
       }
+    } catch (e) {
+      console.error('[mini] catServerFactory 异常，回退原生 http:', e && e.message);
     }
-    for (const ip of addrs) {
-      console.log('Server listening at http://' + ip + ':' + PORT);
-    }
-    console.log('Server listening on http://127.0.0.1:' + PORT);
   }
+
+  if (!server) {
+    const srv = http.createServer(handler);
+    const ok = await listenQuiet(srv, port, 6000);
+    if (!ok) {
+      console.error('[mini] 无法监听端口 ' + port);
+      throw new Error('listen failed on port ' + port);
+    }
+    server = srv;
+    used = 'http';
+  }
+
+  console.log('[mini] listening via ' + used);
+  toast('[mini] 已监听 ' + used + ':' + port);
+
+  // 壳子可能解析这几行来判断启动成功，格式跟底包保持一致
+  let nets = {};
+  try {
+    const os = require('os');
+    nets = (os && os.networkInterfaces ? os.networkInterfaces() : {}) || {};
+  } catch (e) {
+    /* 沙箱里可能取不到网卡信息，不影响启动 */
+  }
+  const addrs = ['127.0.0.1'];
+  for (const list of Object.values(nets || {})) {
+    for (const n of list || []) {
+      const v4 = n && (n.family === 'IPv4' || n.family === 4);
+      if (v4 && !n.internal && addrs.indexOf(n.address) < 0) addrs.push(n.address);
+    }
+  }
+  for (const ip of addrs) console.log('Server listening at http://' + ip + ':' + port);
+  console.log('Server listening on http://127.0.0.1:' + port);
   return server;
+}
+
+// 监听并等 listening；超时就返回 false（不抛），避免 start() 悬挂
+function listenQuiet(srv, port, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try {
+        srv.removeListener('listening', onOk);
+        srv.removeListener('error', onErr);
+      } catch (e) {
+        /* 忽略 */
+      }
+      resolve(ok);
+    };
+    const onOk = () => finish(true);
+    const onErr = (e) => {
+      if (e && e.code === 'EADDRINUSE') {
+        console.error('[mini] 端口 ' + port + ' 被占用');
+        finish(true); // 已经有人在监听，当作成功，壳子照样能连
+        return;
+      }
+      console.error('[mini] listen 出错:', e && e.message);
+      finish(false);
+    };
+    const timer = setTimeout(() => {
+      console.error('[mini] listen 超时 ' + timeoutMs + 'ms');
+      finish(false);
+    }, timeoutMs);
+    srv.once('listening', onOk);
+    srv.once('error', onErr);
+    try {
+      srv.listen(port, '0.0.0.0');
+    } catch (e) {
+      console.error('[mini] listen 抛错:', e && e.message);
+      finish(false);
+    }
+  });
 }
 
 async function stop() {
