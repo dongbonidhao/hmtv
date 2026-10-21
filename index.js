@@ -26,7 +26,6 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { builtinModules } = require('module');
 
 // ---------------------------------------------------------------- 构建期注入
 
@@ -134,12 +133,31 @@ const store = {
 const VENDOR = BUILD.vendor || {};
 const vendorCache = {};
 
-// node 内置模块 + 子路径（fs/promises 等）都放行，fastify 内部会用到
+// node 内置模块 + 子路径（fs/promises 等）都放行，fastify 内部会用到。
+// 不用 require('module')：壳子的 JS 运行时不一定实现 module 模块，模块加载期不能赌。
+const BUILTINS = [
+  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants',
+  'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http',
+  'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process',
+  'punycode', 'querystring', 'readline', 'repl', 'stream', 'string_decoder', 'timers',
+  'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'wasi', 'worker_threads',
+  'zlib',
+];
 const builtinSet = new Set(
-  builtinModules
-    .map((m) => String(m).replace(/^node:/, ''))
-    .concat(['fs/promises', 'stream/web', 'timers/promises', 'util/types', 'dns/promises', 'stream/promises'])
+  BUILTINS.concat([
+    'fs/promises', 'stream/web', 'stream/promises', 'stream/consumers', 'timers/promises',
+    'util/types', 'dns/promises', 'path/posix', 'path/win32',
+  ])
 );
+try {
+  // 能拿到完整清单就补全（老 runtime 没有 module 也不影响）
+  const m = require('module');
+  if (m && Array.isArray(m.builtinModules)) {
+    for (const name of m.builtinModules) builtinSet.add(String(name).replace(/^node:/, ''));
+  }
+} catch (e) {
+  /* 忽略 */
+}
 
 function vendorRequire(name) {
   const key = String(name);
@@ -386,32 +404,6 @@ function registerSpiders(app) {
         } catch (e) {
           console.error('[mini] 站点注册失败 ' + def.key + ': ' + errorText(e));
         }
-      },
-      { prefix }
-    );
-
-    app.register(
-      async function spiderMethodFallback(inst) {
-        inst.route({
-          method: ['GET', 'PUT', 'DELETE', 'PATCH'],
-          url: '/*',
-          handler: async function (request, reply) {
-            try {
-              const res = await inst.inject({
-                method: 'POST',
-                url: request.url,
-                payload: request.body === undefined ? {} : request.body,
-                headers: request.headers,
-              });
-              reply.code(res.statusCode);
-              const ct = res.headers && res.headers['content-type'];
-              if (ct) reply.header('content-type', ct);
-              return reply.send(res.body);
-            } catch (e) {
-              return reply.code(500).send({ error: errorText(e), message: errorText(e) });
-            }
-          },
-        });
       },
       { prefix }
     );
@@ -915,7 +907,16 @@ function installHooks(app) {
         .send();
       return reply;
     }
-    if (request.method === 'GET' || request.method === 'HEAD') return;
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      if (request.url && String(request.url).split('?')[0] === '/check') {
+        try {
+          noteHit(primaryPort(), 'check');
+        } catch (e) {
+          /* 忽略 */
+        }
+      }
+      return;
+    }
     if (!request.headers['content-type']) request.headers['content-type'] = 'application/json';
   });
   app.addHook('preHandler', async (request) => {
@@ -1018,10 +1019,11 @@ function createApp(config) {
 }
 
 // ---------------------------------------------------------------- 启动 / 停止
-// 端口规则：壳子给了 DEV_HTTP_PORT 就照用（给 0 就让系统分配）；
-// 没给（比如电脑上直接 node 跑）用 9988，跟打包台版一致，壳子按固定端口探也能找到。
+// 端口优先级：DEV_HTTP_PORT / PORT 环境变量 → start(config) 里的 config.port → 9988。
+// 华为 FantaPlayer 是把端口放在 config 里传进来的（不是环境变量），只认环境变量会绑错端口，
+// 壳子探不到就报"引擎启动超时"。
 
-function pickPort() {
+function envPort() {
   for (const key of ['DEV_HTTP_PORT', 'PORT']) {
     const raw = process.env[key];
     if (raw === undefined || raw === null || raw === '') continue;
@@ -1029,10 +1031,119 @@ function pickPort() {
     if (Number.isFinite(n) && n >= 0 && n <= 65535) return n;
     return 0;
   }
+  return null;
+}
+
+// config 可能是普通对象，也可能是 Map（官方 JSDoc 写的是 @param {Map} config）
+function configPort(config) {
+  if (!config) return 0;
+  let raw = config.port;
+  if (raw == null && typeof config.get === 'function') {
+    try {
+      raw = config.get('port');
+    } catch (e) {
+      raw = null;
+    }
+  }
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0 && n <= 65535) return n;
+  return 0;
+}
+
+function pickPort(config) {
+  const fromEnv = envPort();
+  if (fromEnv !== null) return fromEnv;
+  const fromConfig = configPort(config);
+  if (fromConfig) return fromConfig;
   return DEFAULT_PORT;
 }
 
+// ---------------------------------------------------------------- 兼容端口
+// 壳子有的版本按固定端口探（老引擎绑过 9977/9988），这里起两个透明代理端口，
+// 把请求原样转给真正在跑的那个端口。万一壳子探的是固定端口，也能直接可用。
+
+const mirrorServers = [];
+const checkHits = new Set();
+let checkNotify = null;
+
+function noteHit(port, path) {
+  const key = port + '|' + path;
+  if (checkHits.has(key)) return;
+  checkHits.add(key);
+  if (checkNotify) checkNotify(port, path);
+}
+
+function proxyTo(primary, req, res, mirrorPort) {
+  const pathname = String(req.url || '').split('?')[0];
+  if (pathname === '/check') noteHit(mirrorPort, 'check(mirror)');
+  const up = http.request(
+    {
+      host: '127.0.0.1',
+      port: primary,
+      method: req.method,
+      path: req.url,
+      headers: Object.assign({}, req.headers, { host: '127.0.0.1:' + primary }),
+    },
+    (ur) => {
+      try {
+        res.writeHead(ur.statusCode || 502, ur.headers);
+      } catch (e) {
+        /* 忽略 */
+      }
+      ur.pipe(res);
+    }
+  );
+  up.on('error', () => {
+    try {
+      res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
+      res.end('{"error":"mirror upstream"}');
+    } catch (e) {
+      /* 忽略 */
+    }
+  });
+  req.pipe(up);
+}
+
+function startMirror(port, primary) {
+  return new Promise((resolve) => {
+    if (!port || port === primary) return resolve(null);
+    let srv;
+    try {
+      srv = http.createServer((req, res) => proxyTo(primary, req, res, port));
+    } catch (e) {
+      return resolve(null);
+    }
+    let done = false;
+    srv.once('error', () => {
+      if (!done) {
+        done = true;
+        resolve(null);
+      }
+    });
+    srv.listen(port, '127.0.0.1', () => {
+      if (done) return;
+      done = true;
+      mirrorServers.push(srv);
+      log('兼容端口已监听 ' + port + '（转发到 ' + primary + '）');
+      resolve(srv);
+    });
+  });
+}
+
+function closeMirrors() {
+  while (mirrorServers.length) {
+    const srv = mirrorServers.pop();
+    try {
+      if (typeof srv.closeAllConnections === 'function') srv.closeAllConnections();
+      srv.close();
+    } catch (e) {
+      /* 忽略 */
+    }
+  }
+}
+
 async function start(config) {
+  const t0 = Date.now();
   // 官方注释：start 可能被调用多次，每次都返回新实例
   if (server) {
     try {
@@ -1042,12 +1153,24 @@ async function start(config) {
     }
   }
 
+  const cfgPort = configPort(config);
+  const envP = envPort();
+  toast('[mini] 启动 cfg=' + (cfgPort || '-') + ' env=' + (envP === null ? '-' : envP));
+
   store.load();
   loadSpiderDefs();
 
-  const app = createApp(config);
+  let app;
+  try {
+    app = createApp(config);
+  } catch (e) {
+    toast('[mini] fastify 失败 ' + errorText(e).slice(0, 24));
+    throw e;
+  }
+  toast('[mini] fastify ok ' + (Date.now() - t0) + 'ms');
+
   const host = process.env.MINI_HOST || '127.0.0.1';
-  let port = pickPort();
+  let port = pickPort(config);
   let tries = 0;
 
   // EADDRINUSE 就往后试一个端口
@@ -1063,6 +1186,7 @@ async function start(config) {
         port = next;
         continue;
       }
+      toast('[mini] 监听失败 ' + String((e && (e.code || e.message)) || e).slice(0, 24));
       throw e;
     }
   }
@@ -1077,19 +1201,32 @@ async function start(config) {
     /* 忽略 */
   }
 
+  checkNotify = (hitPort, kind) => toast('[mini] ' + kind + ' @' + hitPort);
+
+  // 壳子按固定端口探的老习惯，两个端口都留着
+  for (const p of [9988, 9977]) {
+    try {
+      await startMirror(p, realPort);
+    } catch (e) {
+      /* 忽略 */
+    }
+  }
+
   const url = 'http://127.0.0.1:' + realPort;
   // 壳子会解析这行日志，格式别改
   console.log('CatVodSpiderios listening on ' + url);
   console.log('Server listening at ' + url);
   console.log('Server listening on ' + url);
-  log('已就绪 ' + url + '（站点 ' + (spiderDefs.length + 1) + ' 个，/check 可用）');
-  toast('[mini] 已监听 ' + realPort);
+  log('已就绪 ' + url + '（站点 ' + (spiderDefs.length + 1) + ' 个，' + (Date.now() - t0) + 'ms）');
+  toast('[mini] 监听 ' + realPort + ' ' + (Date.now() - t0) + 'ms');
   return app;
 }
 
 async function stop() {
   const app = server;
   server = null;
+  checkNotify = null;
+  closeMirrors();
   if (!app) return;
   try {
     app.stop = true;
