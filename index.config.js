@@ -1,11 +1,11 @@
 // 迷你引擎配置（构建时生成，可读）
 module.exports = {
   brand: "迷你猫源",
-  port: 9988,
+  port: 8888,
   sites: [
     {
       "key": "nodejs_douban_hot",
-      "name": "🔥热门 - 推荐",
+      "name": "🔥热门·推荐",
       "type": 3,
       "api": "/spider/douban_hot/3",
       "searchable": 1,
@@ -23,7 +23,7 @@ module.exports = {
     },
     {
       "key": "nodejs_wanou_pan",
-      "name": "🧸玩偶 4K - 网盘",
+      "name": "🧸玩偶·4K",
       "type": 3,
       "api": "/spider/wanou_pan/3",
       "searchable": 1,
@@ -32,7 +32,7 @@ module.exports = {
     },
     {
       "key": "nodejs_muou_share",
-      "name": "🎭木偶 4K - 网盘",
+      "name": "🎭木偶·4K",
       "type": 3,
       "api": "/spider/muou_share/3",
       "searchable": 1,
@@ -41,7 +41,7 @@ module.exports = {
     },
     {
       "key": "nodejs_duoduo_pan",
-      "name": "☁️多多 4K - 网盘",
+      "name": "☁️多多·4K",
       "type": 3,
       "api": "/spider/duoduo_pan/3",
       "searchable": 1,
@@ -50,7 +50,7 @@ module.exports = {
     },
     {
       "key": "nodejs_shandian_tv",
-      "name": "⚡闪电 4K - 网盘",
+      "name": "⚡闪电·4K",
       "type": 3,
       "api": "/spider/shandian_tv/3",
       "searchable": 1,
@@ -59,7 +59,7 @@ module.exports = {
     },
     {
       "key": "nodejs_pomo_pan",
-      "name": "💿原盘 4K - 网盘",
+      "name": "💿原盘·4K",
       "type": 3,
       "api": "/spider/pomo_pan/3",
       "searchable": 1,
@@ -68,7 +68,7 @@ module.exports = {
     },
     {
       "key": "nodejs_huajuan_pan",
-      "name": "🥐花卷 4K - 网盘",
+      "name": "🥐花卷·4K",
       "type": 3,
       "api": "/spider/huajuan_pan/3",
       "searchable": 1,
@@ -77,7 +77,7 @@ module.exports = {
     },
     {
       "key": "nodejs_pianku_pan",
-      "name": "🧩片库4K- 网盘",
+      "name": "🧩片库·4K",
       "type": 3,
       "api": "/spider/pianku_pan/3",
       "searchable": 0,
@@ -129,16 +129,6 @@ module.exports = {
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 0
-    },
-    {
-      "key": "nodejs_duoju_local_node",
-      "name": "🎬多源 - 短剧",
-      "type": 3,
-      "api": "/spider/duoju_local_node/3",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1,
-      "adult": true
     },
     {
       "key": "nodejs_hema_duanju",
@@ -223,7 +213,7 @@ module.exports = {
     },
     {
       "key": "nodejs_juxiafan_4k",
-      "name": "🍚剧下饭 - 4K",
+      "name": "🍚剧饭 - 4K",
       "type": 3,
       "api": "/spider/juxiafan_4k/3",
       "searchable": 1,
@@ -277,7 +267,7 @@ module.exports = {
     },
     {
       "key": "nodejs_netflix_cat",
-      "name": "🌐网飞猫- 极速",
+      "name": "🌐飞猫- 极速",
       "type": 3,
       "api": "/spider/netflix_cat/3",
       "searchable": 1,
@@ -304,7 +294,7 @@ module.exports = {
     },
     {
       "key": "nodejs_duse91",
-      "name": "🐍91毒蛇- 极速",
+      "name": "🐍毒蛇- 极速",
       "type": 3,
       "api": "/spider/duse91/3",
       "searchable": 1,
@@ -325,24 +315,6 @@ module.exports = {
       "name": "🐺灰太狼 - 极速",
       "type": 3,
       "api": "/spider/mengtaiqi/3",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1
-    },
-    {
-      "key": "nodejs_zhenpin_video",
-      "name": "💎臻品 - 极速",
-      "type": 3,
-      "api": "/spider/zhenpin_video/3",
-      "searchable": 1,
-      "quickSearch": 0,
-      "filterable": 0
-    },
-    {
-      "key": "nodejs_wencaiyingshi",
-      "name": "📖文才 - 极速",
-      "type": 3,
-      "api": "/spider/wencaiyingshi/3",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
@@ -375,6 +347,42 @@ module.exports = {
       "filterable": 1
     },
     {
+      "key": "nodejs_chabeihu",
+      "name": "🦊茶杯狐 - 极速",
+      "type": 3,
+      "api": "/spider/chabeihu/3",
+      "searchable": 1,
+      "quickSearch": 0,
+      "filterable": 0
+    },
+    {
+      "key": "nodejs_dshixiong_tv",
+      "name": "🚀师兄 - 极速",
+      "type": 3,
+      "api": "/spider/dshixiong_tv/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
+    },
+    {
+      "key": "nodejs_zhenpin_video",
+      "name": "💎臻品 - 极速",
+      "type": 3,
+      "api": "/spider/zhenpin_video/3",
+      "searchable": 1,
+      "quickSearch": 0,
+      "filterable": 0
+    },
+    {
+      "key": "nodejs_wencaiyingshi",
+      "name": "📖文才 - 极速",
+      "type": 3,
+      "api": "/spider/wencaiyingshi/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
+    },
+    {
       "key": "nodejs_jisu_zhuiju",
       "name": "📺追剧 - 极速",
       "type": 3,
@@ -397,15 +405,6 @@ module.exports = {
       "name": "🔥热播 - 极速",
       "type": 3,
       "api": "/spider/rebo_fast/3",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1
-    },
-    {
-      "key": "nodejs_dshixiong_tv",
-      "name": "🚀师兄 - 极速",
-      "type": 3,
-      "api": "/spider/dshixiong_tv/3",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
@@ -438,24 +437,6 @@ module.exports = {
       "filterable": 0
     },
     {
-      "key": "nodejs_xiaoningmeng",
-      "name": "🍋檬檬 - 极速",
-      "type": 3,
-      "api": "/spider/xiaoningmeng/3",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1
-    },
-    {
-      "key": "nodejs_chabeihu",
-      "name": "🦊茶杯狐 - 极速",
-      "type": 3,
-      "api": "/spider/chabeihu/3",
-      "searchable": 1,
-      "quickSearch": 0,
-      "filterable": 0
-    },
-    {
       "key": "nodejs_hudie_yingyuan",
       "name": "🦋蝴蝶 - 影院",
       "type": 3,
@@ -467,7 +448,7 @@ module.exports = {
     },
     {
       "key": "nodejs_xin6v",
-      "name": "🧲6V新磁力- 极速",
+      "name": "🧲磁力- 极速",
       "type": 3,
       "api": "/spider/xin6v/3",
       "searchable": 1,
