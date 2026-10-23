@@ -103,6 +103,42 @@ module.exports = {
       "filterable": 0
     },
     {
+      "key": "nodejs_haokan_dj",
+      "name": "好看短剧",
+      "type": 3,
+      "api": "/spider/haokan_dj/3",
+      "searchable": 0,
+      "quickSearch": 0,
+      "filterable": 0
+    },
+    {
+      "key": "nodejs_juwu_dj",
+      "name": "剧屋短剧",
+      "type": 3,
+      "api": "/spider/juwu_dj/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
+    },
+    {
+      "key": "nodejs_weiguan_dj",
+      "name": "围观短剧",
+      "type": 3,
+      "api": "/spider/weiguan_dj/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
+    },
+    {
+      "key": "nodejs_xingxing_dj",
+      "name": "星星短剧",
+      "type": 3,
+      "api": "/spider/xingxing_dj/3",
+      "searchable": 0,
+      "quickSearch": 0,
+      "filterable": 0
+    },
+    {
       "key": "nodejs_huangguo_ai_local",
       "name": "🍊黄果 - 短剧",
       "type": 3,
@@ -129,6 +165,16 @@ module.exports = {
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 0
+    },
+    {
+      "key": "nodejs_duoju_local_node",
+      "name": "🎬多源 - 短剧",
+      "type": 3,
+      "api": "/spider/duoju_local_node/3",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0,
+      "adult": true
     },
     {
       "key": "nodejs_hema_duanju",
